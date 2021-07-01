@@ -9,4 +9,4 @@ all: build
 build: pod-scraper
 
 pod-scraper: $(SOURCES)
-	CGO_ENABLED=$(CGO) go build -o pod-scraper ./cmd/pod-scraper
+	CGO_ENABLED=$(CGO) go build -v -o pod-scraper ./cmd/pod-scraper
