@@ -19,12 +19,20 @@ func DiscoverPods(clientSet *kubernetes.Clientset, nsList *v1.NamespaceList, pod
 	listOptions := metav1.ListOptions{
 		LabelSelector: podLabels,
 	}
-	for _, ns := range nsList.Items {
-		tempPodList, err := clientSet.CoreV1().Pods(ns.Name).List(context.TODO(), listOptions)
+	if nsList != nil {
+		for _, ns := range nsList.Items {
+			tempPodList, err := clientSet.CoreV1().Pods(ns.Name).List(context.TODO(), listOptions)
+			if err != nil {
+				return []v1.Pod{}, err
+			}
+			podList = append(podList, tempPodList.Items...)
+		}
+	} else {
+		tempPodList, err := clientSet.CoreV1().Pods(v1.NamespaceAll).List(context.TODO(), listOptions)
 		if err != nil {
 			return []v1.Pod{}, err
 		}
-		podList = append(podList, tempPodList.Items...)
+		podList = tempPodList.Items
 	}
 	return podList, nil
 }

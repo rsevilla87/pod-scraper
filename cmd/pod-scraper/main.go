@@ -9,6 +9,7 @@ import (
 
 	"github.com/rsevilla87/pod-scraper/pkg/discovery"
 	"github.com/rsevilla87/pod-scraper/pkg/scraper"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -48,28 +49,40 @@ func getClientSet() *kubernetes.Clientset {
 }
 
 func main() {
+	var err error
+	var podList []v1.Pod
+	var nsList *v1.NamespaceList
 	var wg sync.WaitGroup
 	config := parseFlags()
-	scraper := scraper.NewScraper(&wg, *config.code, *config.timeout)
-	clientSet := getClientSet()
-	nsList, err := discovery.DiscoverNamespaces(clientSet, *config.nsLabel)
-	if err != nil {
-		fmt.Println(err)
+	if *config.nsLabel == "" && *config.podLabel == "" {
+		fmt.Println("Either -ns-label or -pod-label flags must be set")
 		os.Exit(1)
 	}
-	if len(nsList.Items) < 1 {
-		fmt.Printf("No namespaces discovered with labels %v", *config.nsLabel)
-		os.Exit(0)
+	scraper := scraper.NewScraper(&wg, *config.code, *config.timeout)
+	clientSet := getClientSet()
+	// Discover pods within the namespaces
+	if *config.nsLabel != "" {
+		nsList, err = discovery.DiscoverNamespaces(clientSet, *config.nsLabel)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		if len(nsList.Items) < 1 {
+			fmt.Printf("No namespaces discovered with labels %v\n", *config.nsLabel)
+			os.Exit(0)
+		}
+		fmt.Printf("Discovered %d namespaces with labels %s\n", len(nsList.Items), *config.nsLabel)
 	}
-	podList, err := discovery.DiscoverPods(clientSet, nsList, *config.podLabel)
+	podList, err = discovery.DiscoverPods(clientSet, nsList, *config.podLabel)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	if len(podList) < 1 {
-		fmt.Printf("No pods discovered with labels %v", *config.podLabel)
+		fmt.Printf("0 pods discovered%v\n", *config.podLabel)
 		os.Exit(0)
 	}
+	fmt.Printf("Discovered %d pods\n", len(podList))
 	for _, pod := range podList {
 		target := fmt.Sprintf("%v://%v:%d%v", *config.urlScheme, pod.Status.PodIP, *config.targetPort, *config.endpoint)
 		wg.Add(1)
